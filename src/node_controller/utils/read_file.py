@@ -1,6 +1,6 @@
 import os
 
-from grpcbigbuffer.utils import WITHOUT_BLOCK_POINTERS_FILE_NAME
+from bee_rpc.utils import WITHOUT_BLOCK_POINTERS_FILE_NAME
 
 from node_controller.gateway.protos import celaut_pb2
 from typing import Callable, Any

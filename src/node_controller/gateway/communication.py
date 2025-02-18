@@ -2,7 +2,7 @@ from time import sleep
 import os
 from typing import List, Tuple
 
-from grpcbigbuffer.client import Dir, client_grpc
+from bee_rpc.client import Dir, client_grpc
 import grpc
 
 from node_controller.gateway.protos import gateway_pb2, gateway_pb2_grpc, celaut_pb2
