@@ -22,7 +22,7 @@ def generate_instance_stub(stub_class, uri: str):
 
 
 def __service_extended(
-        hashes: List[celaut_pb2.Any.Metadata.HashTag.Hash],
+        hashes: List[celaut_pb2.Metadata.HashTag.Hash],
         config: celaut_pb2.Configuration,
         service_hash: str,
         service_directory: str,
@@ -54,7 +54,7 @@ def __service_extended(
         continue
 
     if os.path.exists(os.path.join(metadata_directory, service_hash)):
-        yield Dir(dir=os.path.join(metadata_directory, service_hash), _type=celaut_pb2.Any.Metadata)
+        yield Dir(dir=os.path.join(metadata_directory, service_hash), _type=celaut_pb2.Metadata)
 
     if os.path.exists(os.path.join(service_directory, service_hash)):
         yield Dir(dir=os.path.join(service_directory, service_hash), _type=celaut_pb2.Service)
