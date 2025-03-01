@@ -37,7 +37,7 @@ class ServiceConfig(object):
         self.service_hash: str = service_hash
         self.config: celaut.Configuration = config if config else celaut.Configuration()
         self.hashes = [
-            celaut.Any.Metadata.HashTag.Hash(
+            celaut.Metadata.HashTag.Hash(
                 type=SHA3_256_ID,
                 value=bytes.fromhex(service_hash)
             )
@@ -99,7 +99,7 @@ class ServiceConfig(object):
     def get_service_with_config(self, mem_manager: Callable[[int], Any]) \
             -> Tuple[
                 Union[str, celaut.Service],
-                Union[str, celaut.Any.Metadata],
+                Union[str, celaut.Metadata],
                 gateway_pb2.Configuration]:
         raise Exception("Not implemented.")
 
