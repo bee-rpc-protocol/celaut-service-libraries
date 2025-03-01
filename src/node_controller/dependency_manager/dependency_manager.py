@@ -143,7 +143,7 @@ class DependencyManager(metaclass=Singleton):
     def get_service_with_config(self, service_config_id: str, mem_manager: Callable[[int], Any]) \
             -> Tuple[
                 Union[str, celaut_pb2.Service],
-                Union[str, celaut_pb2.Any.Metadata],
+                Union[str, celaut_pb2.Metadata],
                 gateway_pb2.Configuration]:
         raise Exception("Not implemented.")
         # return self.services[service_config_id].get_service_with_config(mem_manager=mem_manager)
