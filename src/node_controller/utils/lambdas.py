@@ -1,9 +1,5 @@
 import hashlib
-import logging
 from typing import Union
-
-
-def LOGGER(message): logging.getLogger().debug(message + '\n')
 
 
 # -- The service use sha3-256 for identify internal objects. --

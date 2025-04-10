@@ -8,7 +8,6 @@ import grpc
 from node_controller.gateway.protos import gateway_pb2, gateway_pb2_grpc, celaut_pb2
 from node_controller.gateway.protos.gateway_pb2_grpcbf import StartService_input_indices
 from node_controller.gateway.utils import from_gas_amount, to_gas_amount
-from node_controller.utils.lambdas import LOGGER
 
 
 def generate_gateway_stub(node_url: str) -> gateway_pb2_grpc.GatewayStub:
@@ -68,8 +67,9 @@ def launch_instance(gateway_stub,
                     dynamic_metadata_directory: str,
                     dynamic: bool,
                     dev_client,
+                    debug: Callable[[str], None]=lambda s: None
                     ) -> gateway_pb2.Instance:
-    LOGGER('    launching new instance for service ' + service_hash)
+    debug('    launching new instance for service ' + service_hash)
     while True:
         try:
             instance: gateway_pb2.Instance = next(client_grpc(
@@ -86,17 +86,18 @@ def launch_instance(gateway_stub,
                 indices_parser=gateway_pb2.Instance,
                 partitions_message_mode_parser=True,
                 indices_serializer=StartService_input_indices,
+                debug=debug
             ))
             break
         except grpc.RpcError as e:
-            LOGGER('GRPC ERROR LAUNCHING INSTANCE. ' + str(e))
+            debug('GRPC ERROR LAUNCHING INSTANCE. ' + str(e))
             sleep(1)
 
     return instance
 
 
-def stop(gateway_stub, token: str):
-    LOGGER('Stops this instance with token ' + str(token))
+def stop(gateway_stub, token: str, debug: Callable[[str], None]=lambda s: None):
+    debug('Stops this instance with token ' + str(token))
     while True:
         try:
             next(client_grpc(
@@ -108,7 +109,7 @@ def stop(gateway_stub, token: str):
             ))
             break
         except grpc.RpcError as e:
-            LOGGER('GRPC ERROR STOPPING SOLVER ' + str(e))
+            debug('GRPC ERROR STOPPING SOLVER ' + str(e))
             sleep(1)
 
 

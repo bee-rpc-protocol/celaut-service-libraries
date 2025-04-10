@@ -1,4 +1,3 @@
-import logging
 from typing import Optional, Tuple
 
 from node_controller.dependency_manager.dependency_manager import DependencyManager
@@ -14,7 +13,7 @@ from resource_manager.resourcemanager import ResourceManager
 
 class Controller(metaclass=Singleton):
 
-    def __init__(self, default_log=True, default_dependency_manager=True, default_resource_manager=True):
+    def __init__(self, debug: Callable[[str], None]=lambda s: None, default_dependency_manager=True, default_resource_manager=True):
         config = celaut_pb2.ConfigurationFile()
         config.ParseFromString(
             read_file('/__config__')
@@ -23,13 +22,6 @@ class Controller(metaclass=Singleton):
         gateway_uri = get_grpc_uri(config.gateway)
         self.mem_limit: int = config.initial_sysresources.mem_limit
         self.node_url = f"{gateway_uri.ip}:{str(gateway_uri.port)}"
-
-        if default_log:
-            logging.basicConfig(
-                filename='app.log',
-                level=logging.DEBUG,
-                format='%(asctime)s - %(levelname)s - %(message)s'
-            )
 
         if default_dependency_manager:
             DependencyManager(
@@ -47,7 +39,7 @@ class Controller(metaclass=Singleton):
 
         if default_resource_manager:
             ResourceManager(
-                log=lambda message: logging.info(message),
+                log=lambda message: debug(message),
                 ram_pool_method=lambda: self.mem_limit,
                 modify_resources=lambda d: gateway_modify_resources(i=d, node_url=self.node_url)
             )

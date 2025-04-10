@@ -9,7 +9,7 @@ from node_controller.gateway.communication import stop
 
 
 class ServiceInstance(object):
-    def __init__(self, uri: str, token, check_if_is_alive):
+    def __init__(self, uri: str, token: str, check_if_is_alive: bool, debug: Callable[[str], None]=lambda s: None):
         self.uri = uri
         self.token = token
         self.creation_datetime = datetime.now()
@@ -17,6 +17,7 @@ class ServiceInstance(object):
         self.pass_timeout = 0
         self.failed_attempts = 0
         self.check_if_is_alive = check_if_is_alive
+        self.debug = debug
 
     def error(self):
         sleep(1)  # Wait if the service is loading.
@@ -44,7 +45,7 @@ class ServiceInstance(object):
         self.use_datetime = datetime.now()
 
     def stop(self, gateway_stub):
-        stop(gateway_stub=gateway_stub, token=self.token)
+        stop(gateway_stub=gateway_stub, token=self.token, debug=self.debug)
 
     def compute_exception(self, e: Exception) -> str:
         # https://github.com/avinassh/grpc-errors/blob/master/python/client.py

@@ -10,7 +10,6 @@ from node_controller.gateway.communication import generate_gateway_stub
 from node_controller.gateway.protos import gateway_pb2, celaut_pb2, gateway_pb2_grpc
 from node_controller.utils.lambdas import SHA3_256, STATIC_SERVICE_DIRECTORY, DYNAMIC_SERVICE_DIRECTORY, \
     STATIC_METADATA_DIRECTORY, DYNAMIC_METADATA_DIRECTORY
-from node_controller.utils.lambdas import LOGGER
 from node_controller.utils.singleton import Singleton
 
 MAINTENANCE_SLEEP_TIME_DEFAULT = 60
@@ -32,6 +31,7 @@ class DependencyManager(metaclass=Singleton):
                  failed_attempts: int = FAILED_ATTEMPTS_DEFAULT,
                  pass_timeout_times: int = PASS_TIMEOUT_TIMES_DEFAULT,
                  dev_client: str = None,
+                 debug: Callable[[str], None]=lambda s: None
                  ):
 
         if not node_url:
@@ -51,6 +51,8 @@ class DependencyManager(metaclass=Singleton):
         self.services: Dict[str, ServiceConfig] = {}
         self.gateway_stub: gateway_pb2_grpc.GatewayStub = generate_gateway_stub(node_url)
 
+        self.debug = debug
+
         self.lock = Lock()
         Thread(target=self.maintenance, name='DependencyMaintainer').start()
 
@@ -59,7 +61,7 @@ class DependencyManager(metaclass=Singleton):
             sleep(self.maintenance_sleep_time)
             index = 0
             while True:  # If we do for service in services, the entire loop would need to be blocked.
-                LOGGER('maintainer want services lock' + str(self.lock.locked()))
+                self.debug('maintainer want services lock' + str(self.lock.locked()))
                 self.lock.acquire()
 
                 try:
@@ -75,16 +77,16 @@ class DependencyManager(metaclass=Singleton):
                         self.lock.release()
                         continue
                 except IndexError:
-                    LOGGER('All services have been toured.')
+                    self.debug('All services have been toured.')
                     self.lock.release()
                     break
                 except Exception as e:
-                    LOGGER('ERROR on maintainer, ' + str(e))
+                    self.debug('ERROR on maintainer, ' + str(e))
                     self.lock.release()
                     break
                 self.lock.release()
 
-                LOGGER('      maintain service instance --> ' + str(instance))
+                self.debug('      maintain service instance --> ' + str(instance))
                 # In case it has gone unused for too long or is in a 'zombie' state.
                 if datetime.now() - instance.use_datetime > timedelta(
                         minutes=self.maintenance_sleep_time) \
@@ -129,7 +131,8 @@ class DependencyManager(metaclass=Singleton):
                 static_service_directory=self.static_service_directory,
                 static_metadata_directory=self.static_metadata_directory,
                 dynamic_service_directory=self.dynamic_service_directory,
-                dynamic_metadata_directory=self.dynamic_metadata_directory
+                dynamic_metadata_directory=self.dynamic_metadata_directory,
+                debug=self.debug
             )
             self.services.update({
                 service_config_id: service_config
