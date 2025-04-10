@@ -1,6 +1,6 @@
 from time import sleep
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 
 from bee_rpc.client import Dir, client_grpc
 import grpc

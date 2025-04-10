@@ -2,6 +2,7 @@
 # Not ensuring this causes a significant bug, as the instances would remain as zombies on the network until the service is removed.
 from datetime import datetime
 from time import sleep
+from typing import Callable
 
 import grpc
 
