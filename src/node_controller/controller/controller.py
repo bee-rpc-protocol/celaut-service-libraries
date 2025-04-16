@@ -14,10 +14,13 @@ from resource_manager.resourcemanager import ResourceManager
 class Controller(metaclass=Singleton):
 
     def __init__(self, debug: Callable[[str], None]=lambda s: None, default_dependency_manager=True, default_resource_manager=True):
+        debug("Init celaut node controller")
         config = celaut_pb2.ConfigurationFile()
         config.ParseFromString(
             read_file('/__config__')
         )
+        
+        debug("Configuration file loaded.")
 
         gateway_uri = get_grpc_uri(config.gateway)
         self.mem_limit: int = config.initial_sysresources.mem_limit
