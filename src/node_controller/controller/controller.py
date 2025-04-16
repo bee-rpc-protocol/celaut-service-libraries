@@ -34,7 +34,8 @@ class Controller(metaclass=Singleton):
                 static_service_directory="__services__",
                 static_metadata_directory="__metadata__",
                 dynamic_service_directory="",
-                dynamic_metadata_directory=""
+                dynamic_metadata_directory="",
+                debug=lambda message: debug(message)
             )
 
         if default_resource_manager:
