@@ -26,7 +26,8 @@ def __service_extended(
         service_hash: str,
         service_directory: str,
         metadata_directory: str,
-        dev_client: str
+        dev_client: str,
+        debug: Callable[[str], None]=lambda s: None
 ):
     if dev_client:
         yield gateway_pb2.Client(client_id=dev_client)
@@ -46,11 +47,36 @@ def __service_extended(
     for _hash in hashes:
         yield _hash
 
-    if os.path.exists(os.path.join(metadata_directory, service_hash)):
-        yield Dir(dir=os.path.join(metadata_directory, service_hash), _type=celaut_pb2.Metadata)
+    metadata_path = os.path.join(metadata_directory, service_hash)
+    service_path = os.path.join(service_directory, service_hash)
 
-    if os.path.exists(os.path.join(service_directory, service_hash)):
-        yield Dir(dir=os.path.join(service_directory, service_hash), _type=celaut_pb2.Service)
+    # Check metadata directory
+    if not os.path.exists(metadata_path):
+        debug(
+            "Metadata directory missing. Components:\n"
+            f"- Base metadata directory: {metadata_directory} "
+            f"({'exists' if os.path.exists(metadata_directory) else 'missing'})\n"
+            f"- Service hash: {service_hash}\n"
+            f"- Full path: {metadata_path}"
+        )
+        return
+
+    logger.debug(f"Found metadata directory at {metadata_path}")
+    yield Dir(dir=metadata_path, _type=celaut_pb2.Metadata)
+
+    # Check service directory
+    if not os.path.exists(service_path):
+        debug(
+            "Service directory missing. Components:\n"
+            f"- Base service directory: {service_directory} "
+            f"({'exists' if os.path.exists(service_directory) else 'missing'})\n"
+            f"- Service hash: {service_hash}\n"
+            f"- Full path: {service_path}"
+        )
+        return
+        
+    logger.debug(f"Found service directory at {service_path}")
+    yield Dir(dir=service_path, _type=celaut_pb2.Service)
 
 
 def launch_instance(gateway_stub,
@@ -74,7 +100,8 @@ def launch_instance(gateway_stub,
                     service_hash=service_hash,
                     service_directory=dynamic_service_directory if dynamic else static_service_directory,
                     metadata_directory=dynamic_metadata_directory if dynamic else static_metadata_directory,
-                    dev_client=dev_client
+                    dev_client=dev_client,
+                    debug=debug
                 ),
                 indices_parser=gateway_pb2.Instance,
                 partitions_message_mode_parser=True,
