@@ -13,7 +13,14 @@ from resource_manager.resourcemanager import ResourceManager
 
 class Controller(metaclass=Singleton):
 
-    def __init__(self, debug: Callable[[str], None]=lambda s: None, default_dependency_manager=True, default_resource_manager=True):
+    def __init__(self, 
+                 debug: Callable[[str], None]=lambda s: None, 
+                 default_dependency_manager: bool=True, 
+                 default_resource_manager: bool=True, 
+                 app_dir: str="",
+                 services_dir: str="__services__",
+                 metadata_dir: str="__metadata__"
+                ):
         debug("Init celaut node controller")
         config = celaut_pb2.ConfigurationFile()
         config.ParseFromString(
@@ -34,10 +41,10 @@ class Controller(metaclass=Singleton):
                 failed_attempts=3,
                 pass_timeout_times=5,
                 dev_client=None,
-                static_service_directory="__services__",
-                static_metadata_directory="__metadata__",
-                dynamic_service_directory="",
-                dynamic_metadata_directory="",
+                static_service_directory=os.path.join(app_dir, services_dir),
+                static_metadata_directory=os.path.join(app_dir, metadata_dir),
+                dynamic_service_directory=app_dir,
+                dynamic_metadata_directory=app_dir,
                 debug=lambda message: debug(message)
             )
 
