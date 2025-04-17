@@ -69,7 +69,7 @@ def launch_instance(gateway_stub,
                     dev_client,
                     debug: Callable[[str], None]=lambda s: None
                     ) -> gateway_pb2.Instance:
-    debug('    launching new instance for service ' + service_hash)
+    debug(f'    launching new {"dynamic" if dynamic else "static"} instance for service {service_hash}')
     while True:
         try:
             instance: gateway_pb2.Instance = next(client_grpc(
