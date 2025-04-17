@@ -61,7 +61,7 @@ def __service_extended(
         )
         return
 
-    logger.debug(f"Found metadata directory at {metadata_path}")
+    debug(f"Found metadata directory at {metadata_path}")
     yield Dir(dir=metadata_path, _type=celaut_pb2.Metadata)
 
     # Check service directory
@@ -75,7 +75,7 @@ def __service_extended(
         )
         return
         
-    logger.debug(f"Found service directory at {service_path}")
+    debug(f"Found service directory at {service_path}")
     yield Dir(dir=service_path, _type=celaut_pb2.Service)
 
 
