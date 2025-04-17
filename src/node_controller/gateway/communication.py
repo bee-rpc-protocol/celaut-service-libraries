@@ -26,7 +26,6 @@ def __service_extended(
         service_hash: str,
         service_directory: str,
         metadata_directory: str,
-        dynamic: bool,
         dev_client: str
 ):
     if dev_client:
@@ -46,11 +45,6 @@ def __service_extended(
 
     for _hash in hashes:
         yield _hash
-
-    # TODO could use async here.
-    while not dynamic and os.path.isfile(os.path.join(service_directory, 'services.zip')):
-        sleep(1)
-        continue
 
     if os.path.exists(os.path.join(metadata_directory, service_hash)):
         yield Dir(dir=os.path.join(metadata_directory, service_hash), _type=celaut_pb2.Metadata)
@@ -80,7 +74,6 @@ def launch_instance(gateway_stub,
                     service_hash=service_hash,
                     service_directory=dynamic_service_directory if dynamic else static_service_directory,
                     metadata_directory=dynamic_metadata_directory if dynamic else static_metadata_directory,
-                    dynamic=dynamic,
                     dev_client=dev_client
                 ),
                 indices_parser=gateway_pb2.Instance,
