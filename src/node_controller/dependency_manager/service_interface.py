@@ -1,5 +1,4 @@
 from node_controller.dependency_manager.service_instance import ServiceInstance
-
 from node_controller.dependency_manager.service_config import ServiceConfig
 
 
@@ -12,7 +11,7 @@ class ServiceInterface:
         self.gateway_stub = gateway_stub
         self.sc: ServiceConfig = service_with_config
 
-    def get_instance(self) -> ServiceInstance:
+    def get_instance(self, max_attempts: int=5) -> ServiceInstance:
         self.sc.lock.acquire()
 
         try:
@@ -22,7 +21,8 @@ class ServiceInterface:
         except IndexError:
             self.sc.lock.release()
             instance: ServiceInstance = self.sc.launch_instance(
-                self.gateway_stub
+                gateway_stub=self.gateway_stub,
+                max_attempts=max_attempts
             )
 
         instance.mark_time()

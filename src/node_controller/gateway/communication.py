@@ -1,6 +1,6 @@
 from time import sleep
 import os
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Optional
 
 from bee_rpc.client import Dir, client_grpc
 import grpc
@@ -87,10 +87,14 @@ def launch_instance(gateway_stub,
                     dynamic_metadata_directory: str,
                     dynamic: bool,
                     dev_client,
+                    max_attempts: int=5,
                     debug: Callable[[str], None]=lambda s: None
                     ) -> gateway_pb2.Instance:
     debug(f'    launching new {"dynamic" if dynamic else "static"} instance for service {service_hash}')
-    while True:
+    attempt = 0
+    while attempt < max_attempts:
+        attempt +=1
+        debug(f'    - attempt: {attempt}')
         try:
             instance: gateway_pb2.Instance = next(client_grpc(
                 method=gateway_stub.StartService,

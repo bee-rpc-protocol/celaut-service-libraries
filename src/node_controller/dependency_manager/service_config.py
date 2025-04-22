@@ -70,7 +70,7 @@ class ServiceConfig(object):
             self.debug('    list empty --> ' + str(self.instances))
             raise IndexError
 
-    def launch_instance(self, gateway_stub) -> ServiceInstance:
+    def launch_instance(self, gateway_stub, max_attempts: int=5) -> ServiceInstance:
         instance = launch_instance(
             gateway_stub=gateway_stub,
             service_hash=self.service_hash,
@@ -82,6 +82,7 @@ class ServiceConfig(object):
             dynamic_metadata_directory=self.dynamic_metadata_directory,
             dynamic=self.dynamic,
             dev_client=self.dev_client,
+            max_attempts=max_attempts,
             debug=self.debug
         )
 
