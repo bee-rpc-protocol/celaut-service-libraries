@@ -104,7 +104,7 @@ class DependencyManager(metaclass=Singleton):
 
     def add_service(self,
                     service_hash: str,
-                    config: Optional[celaut_pb2.Configuration] = None,
+                    config: Optional[gateway_pb2.Configuration] = None,
                     dynamic: bool = False,
                     timeout: int = None,
                     failed_attempts: int = None,
@@ -112,7 +112,7 @@ class DependencyManager(metaclass=Singleton):
                     ) -> ServiceInterface:
 
         if not config:
-            config = celaut_pb2.Configuration()
+            config = gateway_pb2.Configuration()
 
         service_config_id: str = SHA3_256(
             bytes(service_hash, 'utf-8') + SHA3_256(

@@ -22,7 +22,7 @@ def generate_instance_stub(stub_class, uri: str):
 
 def __service_extended(
         hashes: List[celaut_pb2.Metadata.HashTag.Hash],
-        config: celaut_pb2.Configuration,
+        config: Optional[gateway_pb2.Configuration],
         service_hash: str,
         service_directory: str,
         metadata_directory: str,
@@ -32,8 +32,9 @@ def __service_extended(
     if dev_client:
         yield gateway_pb2.Client(client_id=dev_client)
 
-    yield gateway_pb2.Configuration(
-                config=config,
+    if not config:
+        config = gateway_pb2.Configuration(
+                config=celaut_pb2.Configuration(),
                 resources=gateway_pb2.CombinationResources(clause={
                     1: gateway_pb2.CombinationResources.Clause(
                         min_sysreq=celaut_pb2.Sysresources(
@@ -43,6 +44,8 @@ def __service_extended(
                 }),
                 initial_gas_amount=to_gas_amount(10000)
             )
+        
+    yield config
 
     for _hash in hashes:
         yield _hash
