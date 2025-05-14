@@ -10,6 +10,8 @@ from node_controller.gateway.protos.gateway_pb2_grpcbf import StartService_input
 from node_controller.gateway.utils import from_gas_amount, to_gas_amount
 
 
+VALIDATE_HASH_INTEGRITY = True
+
 def generate_gateway_stub(node_url: str) -> gateway_pb2_grpc.GatewayStub:
     return gateway_pb2_grpc.GatewayStub(
         grpc.insecure_channel(node_url)
@@ -65,7 +67,21 @@ def __service_extended(
         return
 
     debug(f"Found metadata directory at {metadata_path}")
-    yield Dir(dir=metadata_path, _type=celaut_pb2.Metadata)
+
+    if VALIDATE_HASH_INTEGRITY:
+        # Validate metadata integrity
+        metadata = celaut_pb2.Metadata()
+        metadata.ParseFromString(open(metadata_path, "rb").read())
+        integrity_verification = [h.type for h in metadata.hashtag.hash]
+        if len(integrity_verification) != len(set(integrity_verification)):
+            _msg = f"ALERT: Integrity problem with metadata hashes: \n {[(h.type.hex(), h.value.hex()) for h in metadata.hashtag.hash]}"
+            debug(_msg)
+            raise Exception(_msg)
+
+        yield metadata
+        
+    else:
+        yield Dir(dir=metadata_path, _type=celaut_pb2.Metadata)
 
     # Check service directory
     if not os.path.exists(service_path):
