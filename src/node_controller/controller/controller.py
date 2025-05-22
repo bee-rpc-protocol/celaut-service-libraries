@@ -37,6 +37,8 @@ class Controller(metaclass=Singleton):
         self.node_url = f"{gateway_uri.ip}:{str(gateway_uri.port)}"
         self.services_dir = os.path.join(app_dir, services_dir)
         self.metadata_dir = os.path.join(app_dir, metadata_dir)
+        os.makedirs(self.services_dir, exist_ok=True)
+        os.makedirs(self.metadata_dir, exist_ok=True)
 
         if default_dependency_manager:
             DependencyManager(
@@ -101,6 +103,7 @@ class Controller(metaclass=Singleton):
         # Extract the metadata directory and parse the metadata
         metadata_dir = next(it).dir
         service_dir = next(it).dir
+
         metadata = celaut_pb2.Metadata()
         metadata.ParseFromString(open(metadata_dir, "rb").read())
         
@@ -110,18 +113,22 @@ class Controller(metaclass=Singleton):
                 hashtag_service_hash = _hash.value.hex()
 
         if validate:
+            self.debug("validating ....")
             from hashlib import sha3_256
             validate_content = sha3_256()
             for i in read_multiblock_directory(directory=service_dir):
                 validate_content.update(i)
             service_hash = validate_content.hexdigest()
             if hashtag_service_hash and service_hash != hashtag_service_hash:
-                raise Exception(f"Invalid service hash {hashtag_service_hash} was validated: {service_hash}")
+                _msg = f"Invalid service hash {hashtag_service_hash} was validated: {service_hash}"
+                self.debug(_msg)
+                raise Exception(_msg)
+            self.debug("validated correctly")
         else:
             service_hash = hashtag_service_hash
     
         if not service_hash:
-            print("Any service hash available")
+            self.debug("Any service hash available")
             return
         
         # Move metadata to the metadata registry
@@ -130,6 +137,9 @@ class Controller(metaclass=Singleton):
 
         service_destination = os.path.join(self.services_dir, service_hash)
         os.system(f"mv {service_dir} {service_destination}")
+
+        self.debug(f"Metadata directory {metadata_destination}")
+        self.debug(f"Service directory {service_destination}")
         
         return self.add_service(
             service_hash=service_hash,
