@@ -33,6 +33,7 @@ class Controller(metaclass=Singleton):
         debug("Configuration file loaded.")
 
         gateway_uri = get_grpc_uri(config.gateway)
+        self.debug = debug
         self.mem_limit: int = config.initial_sysresources.mem_limit
         self.node_url = f"{gateway_uri.ip}:{str(gateway_uri.port)}"
         self.services_dir = os.path.join(app_dir, services_dir)
