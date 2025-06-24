@@ -5,15 +5,15 @@ from typing import List, Tuple, Callable, Optional
 from bee_rpc.client import Dir, client_grpc
 import grpc
 
-from node_controller.gateway.protos import gateway_pb2, gateway_pb2_grpc, celaut_pb2
-from node_controller.gateway.protos.gateway_pb2_grpcbf import StartService_input_indices
+from node_controller.gateway.protos import celaut_pb2, celaut_pb2_grpc
+from node_controller.gateway.protos.gateway_bee import StartService_input_indices
 from node_controller.gateway.utils import from_gas_amount, to_gas_amount
 
 
 VALIDATE_HASH_INTEGRITY = True
 
-def generate_gateway_stub(node_url: str) -> gateway_pb2_grpc.GatewayStub:
-    return gateway_pb2_grpc.GatewayStub(
+def generate_gateway_stub(node_url: str) -> celaut_pb2_grpc.GatewayStub:
+    return celaut_pb2_grpc.GatewayStub(
         grpc.insecure_channel(node_url)
     )
 
@@ -24,7 +24,7 @@ def generate_instance_stub(stub_class, uri: str):
 
 def __service_extended(
         hashes: List[celaut_pb2.Metadata.HashTag.Hash],
-        config: Optional[gateway_pb2.Configuration],
+        config: Optional[celaut_pb2.Configuration],
         service_hash: str,
         service_directory: str,
         metadata_directory: str,
@@ -32,18 +32,10 @@ def __service_extended(
         debug: Callable[[str], None]=lambda s: None
 ):
     if dev_client:
-        yield gateway_pb2.Client(client_id=dev_client)
+        yield celaut_pb2.Client(client_id=dev_client)
 
     if not config:
-        config = gateway_pb2.Configuration(
-                config=celaut_pb2.Configuration(),
-                resources=gateway_pb2.CombinationResources(clause={
-                    1: gateway_pb2.CombinationResources.Clause(
-                        min_sysreq=celaut_pb2.Sysresources(
-                            mem_limit=7 * pow(10, 6)
-                        )
-                    )
-                }),
+        config = celaut_pb2.Configuration(
                 initial_gas_amount=to_gas_amount(10000)
             )
         
@@ -108,14 +100,14 @@ def launch_instance(gateway_stub,
                     dev_client,
                     max_attempts: int=5,
                     debug: Callable[[str], None]=lambda s: None
-                    ) -> gateway_pb2.Instance:
+                    ) -> celaut_pb2.Instance:
     debug(f'    launching new {"dynamic" if dynamic else "static"} instance for service {service_hash}')
     attempt = 0
     while attempt < max_attempts:
         attempt +=1
         debug(f'    - attempt: {attempt}')
         try:
-            instance: gateway_pb2.Instance = next(client_grpc(
+            instance: celaut_pb2.Instance = next(client_grpc(
                 method=gateway_stub.StartService,
                 input=__service_extended(
                     hashes=hashes,
@@ -126,7 +118,7 @@ def launch_instance(gateway_stub,
                     dev_client=dev_client,
                     debug=debug
                 ),
-                indices_parser=gateway_pb2.Instance,
+                indices_parser=celaut_pb2.Instance,
                 partitions_message_mode_parser=True,
                 indices_serializer=StartService_input_indices,
                 debug=debug
@@ -145,10 +137,10 @@ def stop(gateway_stub, token: str, debug: Callable[[str], None]=lambda s: None):
         try:
             next(client_grpc(
                 method=gateway_stub.StopService,
-                input=gateway_pb2.TokenMessage(
+                input=celaut_pb2.TokenMessage(
                     token=token
                 ),
-                indices_serializer=gateway_pb2.TokenMessage
+                indices_serializer=celaut_pb2.TokenMessage
             ))
             break
         except grpc.RpcError as e:
@@ -157,12 +149,12 @@ def stop(gateway_stub, token: str, debug: Callable[[str], None]=lambda s: None):
 
 
 def modify_resources(i: dict, node_url: str) -> Tuple[celaut_pb2.Sysresources, int]:
-    output: gateway_pb2.ModifyServiceSystemResourcesOutput = next(
+    output: celaut_pb2.ModifyServiceSystemResourcesOutput = next(
         client_grpc(
-            method=gateway_pb2_grpc.GatewayStub(
+            method=celaut_pb2_grpc.GatewayStub(
                 grpc.insecure_channel(node_url)
             ).ModifyServiceSystemResources,
-            input=gateway_pb2.ModifyServiceSystemResourcesInput(
+            input=celaut_pb2.ModifyServiceSystemResourcesInput(
                 min_sysreq=celaut_pb2.Sysresources(
                     mem_limit=i['min']
                 ),
@@ -171,7 +163,7 @@ def modify_resources(i: dict, node_url: str) -> Tuple[celaut_pb2.Sysresources, i
                 ),
             ),
             partitions_message_mode_parser=True,
-            indices_parser=gateway_pb2.ModifyServiceSystemResourcesOutput,
+            indices_parser=celaut_pb2.ModifyServiceSystemResourcesOutput,
         )
     )
     return output.sysreq, from_gas_amount(output.gas)

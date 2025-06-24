@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Callable
 from node_controller.dependency_manager.dependency_manager import DependencyManager
 from node_controller.dependency_manager.service_interface import ServiceInterface
 from node_controller.gateway.communication import modify_resources as gateway_modify_resources
-from node_controller.gateway.protos import celaut_pb2, gateway_pb2
+from node_controller.gateway.protos import celaut_pb2
 from node_controller.utils.get_grpc_uri import get_grpc_uri
 from node_controller.utils.lambdas import SHA3_256_ID
 from node_controller.utils.read_file import read_file
@@ -71,7 +71,7 @@ class Controller(metaclass=Singleton):
 
     def add_service(self,
                     service_hash: str,
-                    config: Optional[gateway_pb2.Configuration] = None,
+                    config: Optional[celaut_pb2.Configuration] = None,
                     dynamic: bool = False,
                     timeout: int = None,
                     failed_attempts: int = None,
@@ -89,7 +89,7 @@ class Controller(metaclass=Singleton):
     def add_bee_file(self, 
                     file_path: str,
                     validate: bool=True,
-                    config: Optional[gateway_pb2.Configuration]=None,
+                    config: Optional[celaut_pb2.Configuration]=None,
                     dynamic: bool=False,
                     timeout: int=None,
                     failed_attempts: int=None,

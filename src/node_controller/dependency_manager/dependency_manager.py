@@ -7,7 +7,7 @@ from node_controller.dependency_manager.service_interface import ServiceInterfac
 from node_controller.dependency_manager.service_instance import ServiceInstance
 from node_controller.dependency_manager.service_config import ServiceConfig
 from node_controller.gateway.communication import generate_gateway_stub
-from node_controller.gateway.protos import gateway_pb2, celaut_pb2, gateway_pb2_grpc
+from node_controller.gateway.protos import celaut_pb2, celaut_pb2_grpc
 from node_controller.utils.lambdas import SHA3_256, STATIC_SERVICE_DIRECTORY, DYNAMIC_SERVICE_DIRECTORY, \
     STATIC_METADATA_DIRECTORY, DYNAMIC_METADATA_DIRECTORY
 from node_controller.utils.singleton import Singleton
@@ -49,7 +49,7 @@ class DependencyManager(metaclass=Singleton):
         self.dynamic_metadata_directory = dynamic_metadata_directory
 
         self.services: Dict[str, ServiceConfig] = {}
-        self.gateway_stub: gateway_pb2_grpc.GatewayStub = generate_gateway_stub(node_url)
+        self.gateway_stub: celaut_pb2_grpc.GatewayStub = generate_gateway_stub(node_url)
 
         self.debug = debug
 
@@ -104,7 +104,7 @@ class DependencyManager(metaclass=Singleton):
 
     def add_service(self,
                     service_hash: str,
-                    config: Optional[gateway_pb2.Configuration] = None,
+                    config: Optional[celaut_pb2.Configuration] = None,
                     dynamic: bool = False,
                     timeout: int = None,
                     failed_attempts: int = None,
@@ -112,7 +112,7 @@ class DependencyManager(metaclass=Singleton):
                     ) -> ServiceInterface:
 
         if not config:
-            config = gateway_pb2.Configuration()
+            config = celaut_pb2.Configuration()
 
         service_config_id: str = SHA3_256(
             bytes(service_hash, 'utf-8') + SHA3_256(
@@ -147,6 +147,6 @@ class DependencyManager(metaclass=Singleton):
             -> Tuple[
                 Union[str, celaut_pb2.Service],
                 Union[str, celaut_pb2.Metadata],
-                gateway_pb2.Configuration]:
+                celaut_pb2.Configuration]:
         raise Exception("Not implemented.")
         # return self.services[service_config_id].get_service_with_config(mem_manager=mem_manager)
