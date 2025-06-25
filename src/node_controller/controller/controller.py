@@ -22,12 +22,13 @@ class Controller(metaclass=Singleton):
                  default_resource_manager: bool=True, 
                  app_dir: str="",
                  services_dir: str="__services__",
-                 metadata_dir: str="__metadata__"
+                 metadata_dir: str="__metadata__",
+                 config_file: str="/__config__"
                 ):
         debug("Init celaut node controller")
         config = celaut_pb2.ConfigurationFile()
         config.ParseFromString(
-            read_file('/__config__')
+            read_file(config_file)
         )
         
         debug("Configuration file loaded.")
