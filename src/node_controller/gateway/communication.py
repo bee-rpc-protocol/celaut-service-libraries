@@ -100,7 +100,7 @@ def launch_instance(gateway_stub,
                     dev_client,
                     max_attempts: int=5,
                     debug: Callable[[str], None]=lambda s: None
-                    ) -> celaut_pb2.Instance:
+                    ) -> celaut_pb2.ServiceInstance:
     debug(f'    launching new {"dynamic" if dynamic else "static"} instance for service {service_hash}')
     attempt = 0
     while attempt < max_attempts:
@@ -118,7 +118,7 @@ def launch_instance(gateway_stub,
                     dev_client=dev_client,
                     debug=debug
                 ),
-                indices_parser=celaut_pb2.Instance,
+                indices_parser=celaut_pb2.ServiceInstance,
                 partitions_message_mode_parser=True,
                 indices_serializer=StartService_input_indices,
                 debug=lambda s: debug(f'bee-rpc debug: {s}')
