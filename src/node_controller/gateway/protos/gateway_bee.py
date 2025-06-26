@@ -1,4 +1,4 @@
-from protos import celaut_pb2, pack_pb2
+from node_controller.gateway.protos import celaut_pb2
 
 StartService_input_indices = {
     1: celaut_pb2.Client,
