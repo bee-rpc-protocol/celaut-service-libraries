@@ -121,7 +121,7 @@ def launch_instance(gateway_stub,
                 indices_parser=celaut_pb2.Instance,
                 partitions_message_mode_parser=True,
                 indices_serializer=StartService_input_indices,
-                debug=debug
+                debug=lambda s: debug(f'bee-rpc debug: {s}')
             ))
             break
         except grpc.RpcError as e:
