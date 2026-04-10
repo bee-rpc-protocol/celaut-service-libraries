@@ -14,16 +14,15 @@ message DataFormat {
     bytes formal = 3;
 }
 
-// Ledger representation including contract bytes, contract address, and ledger string.
-message ContractLedger {
+// Represents both, payment contracts and reputation proofs.
+message Contract {
     message Ledger {
         repeated string tags = 1;
         string prose = 2;
         bytes formal = 3;
     }
-    bytes contract = 1;
-    string contract_addr = 2;
-    Ledger ledger = 3;
+    Ledger ledger = 1;
+    map<string, bytes> xattrs = 2;
 }
 
 // Defines an abstract amount of gas (cost unit) as a numeric string.
@@ -33,7 +32,7 @@ message GasAmount {
 
 // Associates a payment contract ledger with a gas amount (price).
 message GasPrice {
-    ContractLedger contract_ledger = 1;
+    Contract contract = 1;
     GasAmount gas_amount = 2;
 }
 
@@ -58,7 +57,7 @@ message Metadata {
     }
     optional HashTag hashtag = 1;
     optional DataFormat format = 2;
-    repeated ContractLedger reputation_proofs = 3;
+    repeated Contract reputation_proofs = 3;
 }
 
 // -----------------------
@@ -77,8 +76,12 @@ message Service {
         message Slot {
             // Port number for this slot.
             int32 port = 1;
+            // Transport protocol
+            Protocol transport = 2;
             // Protocol stack definitions for this slot.
-            repeated Protocol protocol_stack = 2;
+            repeated Protocol protocol_stack = 3;
+            // Gas amount per declared method in protocol_stack.
+            map<string, GasAmount> gas_amount_per_call = 4;
         }
 
         // Environment variables for the container.
@@ -121,11 +124,17 @@ message Service {
                     // Nested filesystem tree.
                     Filesystem filesystem = 4;
                 }
+                map<string, bytes> xattrs = 5;
             }
             repeated ItemBranch branch = 1;
         }
         
-        message Config {
+        message Init {
+            repeated string entry_path = 1;
+            map<string, bytes> xattrs = 2;
+        }
+
+        message ConfigDeclaration {
             repeated string path = 1;
             DataFormat format = 2;
         }
@@ -136,9 +145,6 @@ message Service {
 
             // Maximum system requirements.
             Sysresources at_most = 2;
-            
-            // Desired start time miliseconds.
-            optional int32 start_time_ms = 3;
         }
         
         // CPU architecture and environment description.
@@ -147,13 +153,13 @@ message Service {
         // Serialized filesystem.
         bytes filesystem = 2;
         
-        // Entrypoint command(s) for the container.
-        repeated string entrypoint = 3;
+        // Entrypoint and startup metadata for the container.
+        Init init = 3;
         
         // Container resource 
         optional Resources resources = 4;
 
-        Config config = 5;
+        ConfigDeclaration config_declaration = 5;
         
         // Expected node protocol stack for internal node logic.
         repeated Api.Protocol node_protocol_stack = 6;
@@ -165,7 +171,7 @@ message Service {
         bytes formal = 3;
 
         // Protocol stack for external clients.
-        repeated Api.Protocol client_protocol_stack = 4;
+        repeated Api.Protocol protocol_stack = 4;
     }
 
     // Natural language description.
@@ -276,7 +282,7 @@ message SignResponse {
 
 message Payment {
     string deposit_token = 1;
-    ContractLedger contract_ledger = 2;
+    Contract contract = 2;
     GasAmount gas_amount = 3;
 }
 
@@ -290,7 +296,7 @@ message ServiceInstance {
 }
 
 message Peer {
-    repeated ContractLedger reputation_proofs = 1;
+    repeated Contract reputation_proofs = 1;
     Instance instance = 2;
 }
 
