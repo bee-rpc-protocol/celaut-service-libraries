@@ -4,7 +4,7 @@ setup(
     name='celaut_libs',
     version='0.0.1',
 
-    url='https://github.com/celaut-project/libraries.git',
+    url='https://github.com/bee-rpc-protocol/celaut-service-libraries.git',
 
     py_modules=['node_controller', 'resource_manager'],
     install_requires=[
