@@ -1,9 +1,9 @@
 from node_controller.gateway.protos import celaut_pb2
 
 
-def to_gas_amount(gas_amount: int) -> celaut_pb2.GasAmount:
-    return celaut_pb2.GasAmount(n=str(gas_amount))
+def to_amount(amount_mu: int) -> celaut_pb2.Amount:
+    return celaut_pb2.Amount(n=str(int(amount_mu)))
 
 
-def from_gas_amount(gas_amount: celaut_pb2.GasAmount) -> int:
-    return int(gas_amount.n)
+def from_amount(amount: celaut_pb2.Amount) -> int:
+    return int(amount.n)

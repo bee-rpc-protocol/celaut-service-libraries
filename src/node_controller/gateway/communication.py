@@ -7,7 +7,7 @@ import grpc
 
 from node_controller.gateway.protos import celaut_pb2, celaut_pb2_grpc
 from node_controller.gateway.protos.gateway_bee import StartService_input_indices
-from node_controller.gateway.utils import from_gas_amount, to_gas_amount
+from node_controller.gateway.utils import from_amount
 
 
 VALIDATE_HASH_INTEGRITY = True
@@ -34,12 +34,11 @@ def __service_extended(
     if dev_client:
         yield celaut_pb2.Client(client_id=dev_client)
 
-    if not config:
-        config = celaut_pb2.Configuration(
-                initial_gas_amount=to_gas_amount(10000)
-            )
-        
-    yield config
+    # No initial_mu on purpose: with it unset the node funds the instance for
+    # deposits.INITIAL_RUNTIME_HOURS of the resources it actually asked for. Any
+    # constant here would be a flat amount again, and 10000 MU (the old default,
+    # back when MU was gas) buys a few seconds of a real instance.
+    yield config if config else celaut_pb2.Configuration()
 
     for _hash in hashes:
         yield _hash
@@ -166,4 +165,4 @@ def modify_resources(i: dict, node_url: str) -> Tuple[celaut_pb2.Sysresources, i
             indices_parser=celaut_pb2.ModifyServiceSystemResourcesOutput,
         )
     )
-    return output.sysreq, from_gas_amount(output.gas)
+    return output.sysreq, from_amount(output.balance)

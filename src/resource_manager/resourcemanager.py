@@ -30,16 +30,13 @@ class ResourceManager(metaclass=Singleton):
     def __init__(self,
                  log=lambda message: print(message),
                  ram_pool_method=None,
-                 gas: int = 0,
-                 gas_factor: float = 1,
                  modify_resources=None
                  ) -> None:
 
         self.ram_pool = ram_pool_method
-        self.gas: int = gas
-        self.gas_function = None  # TODO.
-        self.gas_factor: float = gas_factor
-        self.modify_resources = modify_resources  # {min_memory_limit, max_memory_limit} -> memory_limit_updated
+        self.balance_mu: int = 0  # Instance balance in MU, as reported by the node on each resize.
+        self.modify_resources = modify_resources  # {min, max} -> (sysresources, balance_mu)
+        self.last_request = None
 
         self.log = log
         self.ram_locked = 0
@@ -75,21 +72,27 @@ class ResourceManager(metaclass=Singleton):
             self.log('RAM LOCKED     -> ' + ResourceManager.convert_size(self.ram_locked))
             self.log('RAM AVAILABLE  -> ' + ResourceManager.convert_size(self.get_ram_available()))
             self.log('RAM WAITING    -> ' + ResourceManager.convert_size(sum(self.wait)))
-            self.log('GAS            -> ' + str(self.gas))
+            self.log('BALANCE (MU)   -> ' + str(self.balance_mu))
             self.log('-----------------------------------------\n')
 
-    # Gas manager methods.
+    # Resource negotiation with the node.
     def __update_resources(self, modify_formula):
-        if self.modify_resources:
-            resources, self.gas = self.modify_resources(
-                {
-                    "min": int(modify_formula(min)),  # min resources.
-                    "max": int(modify_formula(sum))  # max resources.
-                }
-            )
-            self.ram_pool = lambda: resources.mem_limit
+        if not self.modify_resources:
+            return
 
-    # TODO Se debe de tener en cuenta el gas a traves de su polinomio.
+        request = {
+            "min": int(modify_formula(min)),  # min resources.
+            "max": int(modify_formula(sum))  # max resources.
+        }
+        # A lock/unlock cycle of the same size lands back on the range already in force.
+        # The node charges pricing.MODIFY_RESOURCES_MU per call, so asking it again for
+        # what it is already doing is paid churn.
+        if request == self.last_request:
+            return
+        self.last_request = request
+
+        resources, self.balance_mu = self.modify_resources(request)
+        self.ram_pool = lambda: resources.mem_limit
 
     def __push_wait_list(self, l: int):
         with self.wait_lock:
@@ -139,7 +142,7 @@ class ResourceManager(metaclass=Singleton):
 
             if len(self.wait) == 0:
                 self.__update_resources(
-                    modify_formula=lambda m: self.ram_locked  # + self.gas * (X factor). TODO
+                    modify_formula=lambda m: self.ram_locked
                 )
         self.__stats('unlocked ' + ResourceManager.convert_size(ram_amount))
 
