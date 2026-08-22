@@ -95,7 +95,10 @@ class DependencyManager(metaclass=Singleton):
                     timeout=service_config.timeout,
                     failed_attempts=service_config.failed_attempts
                 ):
-                    instance.stop(self.gateway_stub)
+                    # try_stop, not stop: a stop() that raised here would unwind
+                    # out of maintenance() and kill this thread permanently, and
+                    # this thread is what reaps zombie instances.
+                    instance.try_stop(self.gateway_stub)
                 # Otherwise, add the instance back to its respective queue.
                 else:
                     self.lock.acquire()

@@ -38,7 +38,10 @@ class ServiceInterface:
                 timeout=self.sc.timeout,
                 failed_attempts=self.sc.failed_attempts
         ):
-            instance.stop(
+            # try_stop: returning an instance to the pool must not raise just
+            # because the gateway is unreachable. A failed stop is logged as a
+            # leak instead.
+            instance.try_stop(
                 self.gateway_stub
             )
 
