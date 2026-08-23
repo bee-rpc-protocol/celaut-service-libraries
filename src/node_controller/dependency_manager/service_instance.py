@@ -6,7 +6,7 @@ from typing import Callable
 
 import grpc
 
-from node_controller.gateway.communication import stop
+from node_controller.gateway.communication import stop, InstanceStopError
 
 
 class ServiceInstance(object):
@@ -46,7 +46,31 @@ class ServiceInstance(object):
         self.use_datetime = datetime.now()
 
     def stop(self, gateway_stub):
+        """Ask the node to stop this instance.
+
+        Raises InstanceStopError if the gateway never answered. Callers that are
+        merely discarding the instance should use try_stop() instead, so a dead
+        gateway does not take their thread down with it.
+        """
         stop(gateway_stub=gateway_stub, token=self.token, debug=self.debug)
+
+    def try_stop(self, gateway_stub) -> bool:
+        """stop() for cleanup paths: never raises, reports whether it worked.
+
+        A failed stop leaks a zombie instance on the node, so it is logged
+        explicitly with the token rather than passing silently -- but it must not
+        propagate out of a maintenance loop and kill the very thread whose job is
+        to reap those zombies.
+        """
+        try:
+            self.stop(gateway_stub)
+            return True
+        except InstanceStopError as e:
+            self.debug(
+                f"LEAKED INSTANCE: could not stop {self.token} at {self.uri}; it may still be "
+                f"running and billing on the node. {e}"
+            )
+            return False
 
     def compute_exception(self, e: Exception) -> str:
         # https://github.com/avinassh/grpc-errors/blob/master/python/client.py
