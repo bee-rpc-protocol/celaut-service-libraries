@@ -2,7 +2,10 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from . import buffer_pb2 as buffer__pb2
+# See the comment in celaut_pb2.py: this must stay bee_rpc's buffer_pb2, not
+# a locally vendored copy, or two non-identical registrations of
+# "buffer.proto" collide in protobuf's global descriptor pool.
+from bee_rpc import buffer_pb2 as buffer__pb2
 
 
 class GatewayStub(object):

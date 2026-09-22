@@ -33,9 +33,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 
 # --- stub bee_rpc so the module imports without the dependency installed -----
+#
+# celaut_pb2 imports buffer_pb2 from bee_rpc (not a local vendored copy --
+# see the comment there), and celaut.proto's own Gateway service references
+# `buffer.Buffer`/`buffer.Empty` by name, so the descriptor pool needs a real
+# "buffer.proto" registered before celaut_pb2 can parse. A bare fake module
+# without those message types would just move the failure from "no bee_rpc"
+# to "buffer.Buffer not found in descriptor pool", so the stub builds the
+# actual tiny descriptor instead of pretending the dependency doesn't matter.
 if "bee_rpc" not in sys.modules:
+    from google.protobuf.internal import builder as _builder
+    from google.protobuf import descriptor_pb2, descriptor_pool
+
     bee = types.ModuleType("bee_rpc")
     bee_client = types.ModuleType("bee_rpc.client")
+    bee_buffer_pb2 = types.ModuleType("bee_rpc.buffer_pb2")
 
     class Dir:
         def __init__(self, dir=None, _type=None):
@@ -45,8 +57,30 @@ if "bee_rpc" not in sys.modules:
     bee_client.Dir = Dir
     bee_client.client_grpc = lambda **kw: iter(())
     bee.client = bee_client
+    bee.buffer_pb2 = bee_buffer_pb2
+
+    # Same construction the real generated *_pb2.py files use (see
+    # node_controller/gateway/protos/celaut_pb2.py), just built from a
+    # FileDescriptorProto instead of a baked-in bytes literal, so the stub
+    # has no bytes blob to fall out of sync with the real buffer.proto.
+    _fdp = descriptor_pb2.FileDescriptorProto()
+    _fdp.name = "buffer.proto"
+    _fdp.package = "buffer"
+    _fdp.syntax = "proto3"
+    _fdp.message_type.add(name="Empty")
+    _buffer_msg = _fdp.message_type.add(name="Buffer")
+    _buffer_msg.field.add(
+        name="chunk", number=1,
+        label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL,
+        type=descriptor_pb2.FieldDescriptorProto.TYPE_BYTES,
+    )
+    _descriptor = descriptor_pool.Default().AddSerializedFile(_fdp.SerializeToString())
+    _builder.BuildMessageAndEnumDescriptors(_descriptor, bee_buffer_pb2.__dict__)
+    _builder.BuildTopDescriptorsAndMessages(_descriptor, "bee_rpc.buffer_pb2", bee_buffer_pb2.__dict__)
+
     sys.modules["bee_rpc"] = bee
     sys.modules["bee_rpc.client"] = bee_client
+    sys.modules["bee_rpc.buffer_pb2"] = bee_buffer_pb2
 
 import grpc  # noqa: E402
 from node_controller.gateway import communication  # noqa: E402

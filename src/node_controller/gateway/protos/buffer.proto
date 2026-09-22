@@ -1,3 +1,19 @@
+// Schema reference only -- NOT compiled by this package.
+//
+// buffer_pb2.py is imported from bee_rpc (see celaut_pb2.py / celaut_pb2_grpc.py),
+// never generated locally, so that "buffer.proto" registers with protobuf's
+// global descriptor pool exactly once per process. A second, independently
+// compiled copy of this file -- even one that starts byte-identical -- drifts
+// the moment either repo changes the message, and the next process to import
+// both ends with:
+//   TypeError: Couldn't build proto file into descriptor pool: duplicate
+//   file name buffer.proto
+//
+// This copy exists so celaut.proto's `import "buffer.proto";` still resolves
+// for anyone re-running protoc against celaut.proto by hand. Keep it byte-for-byte
+// in sync with the canonical source:
+//   https://github.com/bee-rpc-protocol/bee-rpc-over-grpc-py/blob/main/src/bee_rpc/buffer.proto
+
 syntax = "proto3";
 
 package buffer;
@@ -25,4 +41,16 @@ message Buffer  {
     optional bool signal = 3;
     optional Head head = 4;
     optional Block block = 5;
+
+    // Reverse-direction control: "I already hold this block, stop sending it."
+    // Emitted by the *receiver* of a block, read by the *sender*, and therefore
+    // it travels on the opposite direction to `block`. It is a distinct field
+    // precisely so that it can never be confused with `block`, whose meaning on
+    // an inbound stream is already taken (block start / block end marker).
+    //
+    // A peer built before this field existed parses it as an unknown field and
+    // ignores it; senders pad the carrier Buffer with an empty `chunk` so that
+    // such a peer sees an inert zero-byte chunk rather than a Buffer with no
+    // known field set. See StreamControl in utils.py.
+    optional Block skip = 6;
 }
