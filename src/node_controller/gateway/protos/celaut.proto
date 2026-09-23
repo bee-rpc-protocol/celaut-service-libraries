@@ -15,6 +15,12 @@ message DataFormat {
 }
 
 // Represents both, payment contracts and reputation proofs.
+//
+// `xattrs` is where everything ledger-specific lives, so the message itself needs no
+// field per ledger convention. On a reputation proof, two of them carry its owner
+// attestation: `owner_public_key`, the key that published the proof in that ledger's
+// own encoding, and `owner_signature`, that key's signature over the announcing peer's
+// public key.
 message Contract {
     message Ledger {
         repeated string tags = 1;
@@ -25,15 +31,22 @@ message Contract {
     map<string, bytes> xattrs = 2;
 }
 
-// Defines an abstract amount of gas (cost unit) as a numeric string.
-message GasAmount {
+// An amount in MU (monetary unit), as a numeric string.
+//
+// MU is the issuing node's own unit of account and has no intrinsic value. What one MU
+// is worth is declared by each payment contract, as ContractRate.mu_per_unit, so a peer
+// reading a price can convert it into money it understands. Do NOT assume a peg -- each
+// node/contract defines its own rate.
+//
+// A string rather than an integer because a balance is unbounded.
+message Amount {
     string n = 1;
 }
 
-// Associates a payment contract ledger with a gas amount (price).
-message GasPrice {
+// How much one unit of a payment contract is worth, in MU.
+message ContractRate {
     Contract contract = 1;
-    GasAmount gas_amount = 2;
+    Amount mu_per_unit = 2;
 }
 
 // Metadata structure with optional hashtags, data format, and reputation proofs.
@@ -80,17 +93,17 @@ message Service {
             Protocol transport = 2;
             // Protocol stack definitions for this slot.
             repeated Protocol protocol_stack = 3;
-            // Gas amount per declared method in protocol_stack.
-            map<string, GasAmount> gas_amount_per_call = 4;
+            // MU charged per declared method in protocol_stack.
+            map<string, Amount> mu_per_call = 4;
         }
 
         repeated Slot slot = 1;
 
-        // Accepted payment contracts with conversion to gas.
-        repeated GasPrice payment_contracts = 2;
-        
+        // Accepted payment contracts and what one unit of each is worth in MU.
+        repeated ContractRate payment_contracts = 2;
+
         /*
-         The cost of the service is measured in "gas":
+         A service costs MU in two ways:
            1. Initial fixed cost (one-time).
            2. Usage-based cost (variable).
          Detailed cost rules are specified within the API protocol.
@@ -135,13 +148,13 @@ message Service {
     }
 
     message Container {
-        
+
         message Architecture {
             repeated string tags = 1;
             string prose = 2;
             bytes formal = 3;
         }
-        
+
         message Filesystem {
             message ItemBranch {
                 message Link {
@@ -162,7 +175,7 @@ message Service {
             }
             repeated ItemBranch branch = 1;
         }
-        
+
         message Init {
             repeated string entry_path = 1;
             map<string, bytes> xattrs = 2;
@@ -183,18 +196,18 @@ message Service {
 
         // CPU architecture and environment description.
         Architecture architecture = 1;
-        
+
         // Serialized filesystem.
         bytes filesystem = 2;
-        
+
         // Entrypoint and startup metadata for the container.
         Init init = 3;
-        
-        // Container resource 
+
+        // Container resource
         optional Resources resources = 4;
 
         ConfigDeclaration config_declaration = 5;
-        
+
         // Expected node protocol stack for internal node logic.
         repeated Api.Protocol node_protocol_stack = 6;
 
@@ -236,17 +249,16 @@ message Service {
 
     // Container configuration.
     Container container = 2;
-    
+
     // API definition.
     Api api = 3;
-    
+
     // Network definitions.
     repeated Network network = 4;
 
     // Worst-case descendant workload scenarios this service may request.
     // This belongs to the service-level execution environment rather than to
-    // its container representation. Spec-only: nodo's scheduler interpretation
-    // and validation are intentionally NOT part of this change (#163).
+    // its container representation.
     repeated PossibleEnvironmentWorkload possible_environment_workload = 5;
 }
 
@@ -276,8 +288,8 @@ message Configuration {
     // Service specification slots.
     repeated int32 spec_slot = 2;
 
-    // Optional initial gas deposit for service execution.
-    optional GasAmount initial_gas_amount = 3;
+    // Optional initial MU balance for service execution.
+    optional Amount initial_mu = 3;
 }
 
 message ConfigurationFile {
@@ -323,34 +335,25 @@ message TokenMessage {
 }
 
 message EstimatedCost {
-    GasAmount cost = 1;
-    GasAmount init_maintenance_cost = 2;
-    GasAmount max_maintenance_cost = 3;
+    Amount cost = 1;
+    Amount init_maintenance_cost = 2;
+    Amount max_maintenance_cost = 3;
     int32 maintenance_seconds_loop = 4;
     float variance = 5;
 }
 
 message Refund {
-    GasAmount amount = 1;
-}
-
-message SignRequest {
-    string public_key = 1;
-    string to_sign = 2;
-}
-
-message SignResponse {
-    string signed = 1;
+    Amount amount = 1;
 }
 
 message Payment {
     string deposit_token = 1;
     Contract contract = 2;
-    GasAmount gas_amount = 3;
+    Amount amount = 3;
 }
 
 message Metrics {
-    GasAmount gas_amount = 1;
+    Amount balance = 1;
 }
 
 message ServiceInstance {
@@ -358,9 +361,48 @@ message ServiceInstance {
     Instance instance = 2;
 }
 
+// A node's identity and how to reach it.
 message Peer {
+    // One address this peer is reachable at, fully self-describing: the transport
+    // and protocol stack belong to the endpoint, not to the node, so no separate
+    // slot message and no port-based matching between the two is needed.
+    message Uri {
+        message Protocol {
+            repeated string tags = 1;
+            string prose = 2;
+            bytes formal = 3;
+        }
+
+        string ip = 1;
+        int32 port = 2;
+        // Unix timestamp after which this address may stop being valid (e.g. a
+        // typical ISP DHCP lease expiry). Optional: 0 means no estimate is made.
+        int64 expiry_unix_timestamp = 3;
+        // Transport this address speaks (tcp / udp).
+        Protocol transport = 4;
+        repeated Protocol protocol_stack = 5;
+    }
+
     repeated Contract reputation_proofs = 1;
-    Instance instance = 2;
+
+    // Every address this peer is reachable at.
+    repeated Uri uri = 2;
+
+    // Node-wide, not per-address: what this peer accepts as payment and what it
+    // charges on a recurring basis.
+    repeated ContractRate payment_contracts = 3;
+    map<string, Amount> mu_per_call = 4;
+
+    // Node identity: the public key (hex) of the node's identity keypair, and a
+    // signature over the canonical encoding of everything this message
+    // advertises. Verifying it proves the sender controls public_key without
+    // any interactive challenge.
+    string public_key = 5;
+    string signature = 6;
+
+    // Anti-replay: a verifier rejects a message whose ts is not strictly newer
+    // than the last one it accepted for this public_key.
+    int64 ts = 7;
 }
 
 message Client {
@@ -373,7 +415,7 @@ message RecursionGuard {
 
 message ModifyServiceSystemResourcesOutput {
     Sysresources sysreq = 1;
-    GasAmount gas = 2;
+    Amount balance = 2;
 }
 
 message ModifyServiceSystemResourcesInput {
@@ -381,12 +423,12 @@ message ModifyServiceSystemResourcesInput {
     Sysresources max_sysreq = 2;
 }
 
-message ModifyGasDepositInput {
-    GasAmount gas_difference = 1;
+message ModifyDepositInput {
+    Amount difference = 1;
     string service_token = 2;
 }
 
-message ModifyGasDepositOutput {
+message ModifyDepositOutput {
     bool success = 1;
     string message = 2;
 }
@@ -413,7 +455,7 @@ message ObserveEvent {
         string degraded_reason = 4;  // empty when full AF_PACKET capture is live.
         int32 link_type = 5;         // libpcap LINKTYPE for the global header (1=ethernet, 101=raw IP).
         uint32 snaplen = 6;          // capture snap length for the pcap global header.
-        string gas = 7;              // instance gas balance at attach (celaut GasAmount numeric string); "" when unknown.
+        string balance = 7;          // instance MU balance at attach (celaut Amount numeric string); "" when unknown.
     }
 
     // One CPU+memory sample (the fields of observe.metrics_record).
@@ -434,9 +476,9 @@ message ObserveEvent {
         optional uint64 net_tx_bytes = 9;
         optional uint64 net_rx_packets = 10;
         optional uint64 net_tx_packets = 11;
-        // Instance gas balance at this sample (celaut GasAmount numeric string),
+        // Instance MU balance at this sample (celaut Amount numeric string),
         // re-read each tick so a consumer sees it spent live. "" when unknown.
-        string gas = 12;
+        string balance = 12;
     }
 
     // One parsed connection event (the fields of observe.serialize_event).
@@ -482,14 +524,13 @@ message ObserveEvent {
 service Gateway {
     rpc StartService(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Configuration | Hash | Client | RecursionGuard | Service -> Instance
     rpc StopService(stream buffer.Buffer) returns (stream buffer.Buffer) {} // TokenMessage -> Refund
-    rpc ModifyGasDeposit(stream buffer.Buffer) returns (stream buffer.Buffer) {} // ModifyGasDepositInput -> ModifyGasDepositOutput
+    rpc ModifyDeposit(stream buffer.Buffer) returns (stream buffer.Buffer) {} // ModifyDepositInput -> ModifyDepositOutput
 
     rpc GetPeerInfo(stream buffer.Buffer) returns (stream buffer.Buffer) {} //  -> Peer
-    rpc IntroducePeer(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Peer -> 
+    rpc IntroducePeer(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Peer ->
     rpc GenerateClient(stream buffer.Buffer) returns (stream buffer.Buffer) {} //  -> Client
     rpc GenerateDepositToken(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Client -> TokenMessage
     rpc Payable(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Payment -> Empty
-    rpc SignPublicKey(stream buffer.Buffer) returns (stream buffer.Buffer) {} // SignRequest -> SignResponse
     rpc ModifyServiceSystemResources(stream buffer.Buffer) returns (stream buffer.Buffer) {} // ModifyServiceSystemResourcesInput -> ModifyServiceSystemResourcesOutput
     rpc GetServiceEstimatedCost(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Metadata.HashTag.Hash & Service -> EstimatedCost
     rpc GetService(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Metadata.HashTag.Hash -> Service
