@@ -41,6 +41,11 @@ class GatewayStub(object):
                 request_serializer=buffer__pb2.Buffer.SerializeToString,
                 response_deserializer=buffer__pb2.Buffer.FromString,
                 )
+        self.ResolveNetwork = channel.stream_stream(
+                '/celaut.Gateway/ResolveNetwork',
+                request_serializer=buffer__pb2.Buffer.SerializeToString,
+                response_deserializer=buffer__pb2.Buffer.FromString,
+                )
         self.IntroducePeer = channel.stream_stream(
                 '/celaut.Gateway/IntroducePeer',
                 request_serializer=buffer__pb2.Buffer.SerializeToString,
@@ -68,6 +73,11 @@ class GatewayStub(object):
                 )
         self.GetServiceEstimatedCost = channel.stream_stream(
                 '/celaut.Gateway/GetServiceEstimatedCost',
+                request_serializer=buffer__pb2.Buffer.SerializeToString,
+                response_deserializer=buffer__pb2.Buffer.FromString,
+                )
+        self.GetResourceAvailability = channel.stream_stream(
+                '/celaut.Gateway/GetResourceAvailability',
                 request_serializer=buffer__pb2.Buffer.SerializeToString,
                 response_deserializer=buffer__pb2.Buffer.FromString,
                 )
@@ -124,6 +134,25 @@ class GatewayServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ResolveNetwork(self, request_iterator, context):
+        """Ask this node to turn a communication domain into the peers it knows in it.
+
+        Any Service.Network, not one kind of it: a domain is declared the same way
+        whatever resolves it (tags/prose/formal), and a caller that had to know in
+        advance which kind it was holding would be doing the resolving itself. A `pow:`
+        network is the case that needs asking -- it has no name to look up, so its
+        addresses have to be found rather than resolved (issue #78) -- but nothing here
+        is about proof of work, and a node may answer for a DNS tag just as well.
+
+        The answer is what this node BELIEVES, not a grant and not a proof. The caller
+        verifies every address it is given, exactly as it would verify one an operator
+        typed into its own config, because a peer that names an address has staked
+        nothing on it. Nothing is opened on the strength of this reply.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def IntroducePeer(self, request_iterator, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -155,6 +184,12 @@ class GatewayServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetServiceEstimatedCost(self, request_iterator, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetResourceAvailability(self, request_iterator, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -207,6 +242,11 @@ def add_GatewayServicer_to_server(servicer, server):
                     request_deserializer=buffer__pb2.Buffer.FromString,
                     response_serializer=buffer__pb2.Buffer.SerializeToString,
             ),
+            'ResolveNetwork': grpc.stream_stream_rpc_method_handler(
+                    servicer.ResolveNetwork,
+                    request_deserializer=buffer__pb2.Buffer.FromString,
+                    response_serializer=buffer__pb2.Buffer.SerializeToString,
+            ),
             'IntroducePeer': grpc.stream_stream_rpc_method_handler(
                     servicer.IntroducePeer,
                     request_deserializer=buffer__pb2.Buffer.FromString,
@@ -234,6 +274,11 @@ def add_GatewayServicer_to_server(servicer, server):
             ),
             'GetServiceEstimatedCost': grpc.stream_stream_rpc_method_handler(
                     servicer.GetServiceEstimatedCost,
+                    request_deserializer=buffer__pb2.Buffer.FromString,
+                    response_serializer=buffer__pb2.Buffer.SerializeToString,
+            ),
+            'GetResourceAvailability': grpc.stream_stream_rpc_method_handler(
+                    servicer.GetResourceAvailability,
                     request_deserializer=buffer__pb2.Buffer.FromString,
                     response_serializer=buffer__pb2.Buffer.SerializeToString,
             ),
@@ -340,6 +385,23 @@ class Gateway(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
+    def ResolveNetwork(request_iterator,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.stream_stream(request_iterator, target, '/celaut.Gateway/ResolveNetwork',
+            buffer__pb2.Buffer.SerializeToString,
+            buffer__pb2.Buffer.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
     def IntroducePeer(request_iterator,
             target,
             options=(),
@@ -436,6 +498,23 @@ class Gateway(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.stream_stream(request_iterator, target, '/celaut.Gateway/GetServiceEstimatedCost',
+            buffer__pb2.Buffer.SerializeToString,
+            buffer__pb2.Buffer.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetResourceAvailability(request_iterator,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.stream_stream(request_iterator, target, '/celaut.Gateway/GetResourceAvailability',
             buffer__pb2.Buffer.SerializeToString,
             buffer__pb2.Buffer.FromString,
             options, channel_credentials,
