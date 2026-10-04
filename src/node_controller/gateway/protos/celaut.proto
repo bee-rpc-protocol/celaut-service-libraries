@@ -14,6 +14,48 @@ message DataFormat {
     bytes formal = 3;
 }
 
+// Ordered key/value entries, one message per value type.
+//
+// These replace protobuf `map<string, V>` fields. A proto3 map is wire-identical to
+// `repeated Entry { key = 1; value = 2; }` at the same field number, so a field
+// converted from a map keeps its number and name and still reads bytes written before
+// the change -- and is read by nodes that still declare the map. What a map does NOT
+// give is a defined order: protobuf leaves map entry order on the wire to the
+// implementation, and a service id is a hash of the serialized specification, so two
+// implementations (or two runs) could serialize the same service to different bytes and
+// therefore different ids. A repeated field keeps the order it was given.
+//
+// Convention for every field of these types (src/utils/keyvalue.py is the one place
+// that implements it):
+//   * A producer writes entries sorted by key, ascending by UTF-8 bytes, one entry per
+//     key, and no empty key.
+//   * A reader resolves a key to the LAST entry that carries it -- what a map does when
+//     a key repeats -- and must not depend on any other order.
+//   * `optional` on a scalar `value` is deliberate: proto3 omits a scalar equal to its
+//     default (empty bytes, 0), whereas a map entry always wrote both fields. With
+//     presence tracked, an entry whose value is empty/0 is still written as `key` +
+//     `value`, exactly the bytes a map produced, and parses back to the same bytes.
+
+message BytesKeyValue {
+    string key = 1;
+    optional bytes value = 2;
+}
+
+message AmountKeyValue {
+    string key = 1;
+    Amount value = 2;
+}
+
+message DataFormatKeyValue {
+    string key = 1;
+    DataFormat value = 2;
+}
+
+message Uint64KeyValue {
+    string key = 1;
+    optional uint64 value = 2;
+}
+
 // Represents both, payment contracts and reputation proofs.
 //
 // `xattrs` is where everything ledger-specific lives, so the message itself needs no
@@ -53,7 +95,7 @@ message Contract {
         bytes formal = 3;
     }
     Ledger ledger = 1;
-    map<string, bytes> xattrs = 2;
+    repeated BytesKeyValue xattrs = 2;
 }
 
 // An amount in MU (monetary unit), as a numeric string.
@@ -126,7 +168,7 @@ message Service {
             // Protocol stack definitions for this slot.
             repeated Protocol protocol_stack = 3;
             // MU charged per declared method in protocol_stack.
-            map<string, Amount> mu_per_call = 4;
+            repeated AmountKeyValue mu_per_call = 4;
         }
 
         repeated Slot slot = 1;
@@ -203,7 +245,7 @@ message Service {
                     // Nested filesystem tree.
                     Filesystem filesystem = 4;
                 }
-                map<string, bytes> xattrs = 5;
+                repeated BytesKeyValue xattrs = 5;
             }
             repeated ItemBranch branch = 1;
 
@@ -220,12 +262,12 @@ message Service {
             //     capacity beyond /tmp; the node may build it with a
             //     compressed, unpadded format (e.g. squashfs/erofs) instead of
             //     a pre-sized ext4, and mount it read-only.
-            map<string, bytes> xattrs = 2;
+            repeated BytesKeyValue xattrs = 2;
         }
         
         message Init {
             repeated string entry_path = 1;
-            map<string, bytes> xattrs = 2;
+            repeated BytesKeyValue xattrs = 2;
         }
 
         message ConfigDeclaration {
@@ -261,7 +303,7 @@ message Service {
         // Environment variables for the execution environment.
         // (Moved here from Service.Api: env vars belong to the container that
         // runs the code, not to the communication interface.)
-        map<string, DataFormat> environment_variables = 7;
+        repeated DataFormatKeyValue environment_variables = 7;
 
     }
 
@@ -330,7 +372,7 @@ message Instance {
 
 message Configuration {
     // Environment variables for gateway services.
-    map<string, bytes> environment_variables = 1;
+    repeated BytesKeyValue environment_variables = 1;
 
     // Service specification slots.
     repeated int32 spec_slot = 2;
@@ -370,6 +412,41 @@ message Sysresources {
     optional uint64 mem_limit = 4;
     // Disk space limit in bytes.
     optional uint64 disk_space = 5;
+
+    // PER-CORE throughput on named primitives, in units per second on ONE core
+    // -- so it composes with cpu_quota/cpu_period: "2 cores, each at least 500k
+    // int ops/s" is cpu_quota/cpu_period = 2.0 plus
+    // benchmark["int_ops_per_sec"] = 500000, never a total across cores.
+    // Absent key = nothing said about that primitive. New primitives are new
+    // entry keys, never new proto fields -- this must never need a wire-format
+    // change to add one. A key a node does not recognise is carried as it is,
+    // never an error.
+    //
+    // No min_/max_ prefix, like every other field here: whether it is a floor or
+    // a ceiling comes from where the Sysresources sits.
+    //   * Service.Container.Resources.at_init of a service: the MINIMUM the
+    //     service requires. This is the half admission enforces.
+    //   * ArchitectureResources.resources: in a Peer, the node's MEASURED score for
+    //     that architecture, i.e. the most it offers; in a GetResourceAvailability
+    //     request, the MINIMUM required.
+    //   * Service.Container.Resources.at_most: carries no meaning. Admission
+    //     ignores it, and the packer refuses it.
+    //
+    // Recognised keys (src/utils/benchmark.py::BENCHMARK_KEYS):
+    //   int_ops_per_sec                 integer/branch-heavy operations per second
+    //   flt_ops_per_sec                 floating-point operations per second
+    //   mem_bandwidth_64mib_bytes_per_sec   bytes of memory written per second, over
+    //   mem_bandwidth_256mib_bytes_per_sec  a working set of that size (one key per
+    //   mem_bandwidth_1gib_bytes_per_sec    size)
+    //   sha256_hashes_per_sec           SHA-256 digests per second
+    //
+    // A bandwidth is only comparable with another measured over the same amount of
+    // memory, so the working set is part of the key. A requirement may name any size
+    // (mem_bandwidth_<n><kib|mib|gib>_bytes_per_sec); it is held against the score under
+    // the same key, or else under the smallest larger working set the node measured (a
+    // larger set can only lower a bandwidth), or is not enforced when there is none.
+    // (benchmark.MEM_WORKING_SETS, benchmark.shortfalls)
+    repeated Uint64KeyValue benchmark = 99;
 }
 
 // -----------------------
@@ -396,6 +473,27 @@ message EstimatedCost {
 // side. Used to evaluate Service.PossibleEnvironmentWorkload scenarios: a
 // descendant workload group can declare only `resources`, with no `hash`/
 // embedded `service` to ask GetServiceEstimatedCost about.
+// A resource shape for one architecture: what a node announces it supports in
+// Peer.resources, and what GetResourceAvailability is asked about. Resources differ
+// per architecture -- most visibly `benchmark`, since the same "1.0 core" is native
+// silicon under one virtualizer and software emulation under another (#448), but
+// cpu, memory and disk can too.
+//
+// One Sysresources, no at_init/at_most split: the question is only "is this supported?".
+//   * In Peer.resources: the most this node supports on that architecture, with its
+//     measured `benchmark` scores.
+//   * In a GetResourceAvailability request: the shape asked about. The limits are the
+//     most one instance may grow to (the worst case: a node that supports it supports
+//     any smaller start), and `benchmark` is the minimum per-core score required.
+//
+// `architecture` is matched by tag, the way a service's own is. In a
+// GetResourceAvailability request an empty one means "the node's native
+// architecture", which is what the question meant before it carried one.
+message ArchitectureResources {
+    Service.Container.Architecture architecture = 1;
+    Sysresources resources = 2;
+}
+
 message ResourceAvailability {
     bool can_execute = 1;
     // Empty when can_execute is true. Human-readable, not meant to be parsed.
@@ -461,7 +559,7 @@ message Peer {
     // addresses you reach it through (see cost_functions.node_advertised_rates,
     // which has no notion of a port), so they are not repeated per Uri.
     repeated ContractRate payment_contracts = 3;
-    map<string, Amount> mu_per_call = 4;
+    repeated AmountKeyValue mu_per_call = 4;
 
     // Node identity (issue #236): the public key (hex) of the node's identity keypair,
     // in whatever encoding `signature_scheme` names, and a signature over the canonical
@@ -583,10 +681,30 @@ message Peer {
     }
     SignatureScheme signature_scheme = 7;
 
+    // Maximum resources the node supports, per architecture it serves. Doubles as
+    // the list of supported architectures: an architecture absent from it is one
+    // this node does not run at all.
+    //
+    // Each entry's `resources.at_most` is a capacity ceiling, not current headroom
+    // -- the most one instance of that architecture could be granted here (memory
+    // pool, disk, cores, each capped by host_limits) -- so a request that fits can
+    // still be refused for load, while one that does not fit never will be. Its
+    // `benchmark` is the node's measured per-core score for that architecture (see
+    // Sysresources.benchmark); a primitive it has not measured is absent, never 0.
+    // `at_init` is unused.
+    //
+    // A peer reads it before calling GetServiceEstimatedCost/GetResourceAvailability
+    // and skips a node that announced the service's architecture with resources
+    // the request does not fit, or that did not announce that architecture. A node
+    // that announces nothing is called as before.
+    //
+    // Covered by `signature` (node_identity.canonical_peer_content_digest).
+    repeated ArchitectureResources resources = 8;
+
     // Anti-replay: a verifier rejects a message whose ts is not strictly newer than
     // the last one it accepted for this public_key. Guards only against a downgrade
     // to a stale address; the claim itself is safe to freely redistribute.
-    int64 ts = 8;
+    int64 ts = 99;
 }
 
 message Client {
@@ -598,6 +716,18 @@ message Client {
     // and a node whose difficulty is still 0 -- keeps working unchanged.
     optional string challenge = 2;
     optional string pow_solution = 3;
+
+    // Optional: the caller proving it is also a known peer, so this node can learn
+    // which of its own clients that peer is (`peer.local_client_id`) at the one
+    // moment the association can be made without ambiguity -- client_id is minted
+    // right here, so there is no window where it exists but is not yet bound.
+    // `signature` covers `peer_id` and `client_id` together
+    // (identity.node_identity.client_binding_payload), signed with the peer's
+    // identity key. Left unset, a client is created exactly as before, tied to no
+    // peer -- most callers are not peers at all (docs/CONCEPTS.md's "Peers and
+    // clients"), so this is the exception, not the rule.
+    optional string peer_id = 4;
+    optional string signature = 5;
 }
 
 // What GenerateClient answers with instead of a Client once this node has handed out
@@ -613,8 +743,72 @@ message PoWRequired {
     int32 difficulty = 5;
 }
 
+// A free-text message exchanged directly between two peers' operators (issue: peer
+// chat), for coordinating when something is wrong outside any service execution --
+// there is otherwise no channel between two node operators at all.
+//
+// Authenticated the same way every other client-facing RPC on this gateway is --
+// `client_id` is a bearer credential, exactly like `TokenMessage.token` or
+// `ModifyDepositInput.service_token`, not a fresh signature scheme of its own. The
+// sender is whichever peer this node already knows that client_id as
+// (`peer.local_client_id`, set once at `GenerateClient` time); a `client_id` this
+// node never associated with a peer is refused, not attributed to a stranger.
+message ChatMessage {
+    string client_id = 1;
+    string body = 2;
+
+    // Groups this message into a conversation (issue #431). Optional: absent means
+    // exactly the flat, un-threaded history this had before conversations existed.
+    // Minted by whichever side opens a new topic -- a UUID4, the same shape a
+    // client_id already has -- and carried on every message in it by both sides
+    // afterward. Not a live connection: the RPC stays the one-message-at-a-time
+    // call it always was, so a conversation exists whether or not either operator
+    // is watching their node at that moment, which is the case this feature is
+    // for ("tell the other operator something is wrong") in the first place.
+    optional string conversation_id = 3;
+
+    // A service shared in this message (issue #438): the service's own Metadata,
+    // exactly as its sender's registry holds it -- hashes, tags, format, reputation
+    // proofs -- which the TUI renders as a card with "get" and "execute" on it. The
+    // id those take is the Metadata hash of the receiving node's registry hash type,
+    // so nothing but the Metadata itself travels. Optional and additive: a node that
+    // predates it skips the unknown field and keeps `body`, which the sender fills
+    // with a line naming the service for exactly that reader.
+    optional Metadata service = 4;
+}
+
+// Chat's reply, once storage is confirmed (or refused) instead of nothing. `stored`
+// is false for exactly the reasons `ChatMessage` can be refused -- unknown or
+// unassociated client_id, empty or oversize body -- and `reason` says which; it is
+// never a transport failure, which surfaces as an ordinary RPC error instead.
+message ChatAck {
+    bool stored = 1;
+    string reason = 2;
+}
+
+// Travels with every request a node may answer by asking its peers the same thing
+// (StartService, GetServiceEstimatedCost, GetResourceAvailability -- issue #456;
+// docs/RECURSION_GUARD.md). `token` names the whole request tree and is forwarded
+// unchanged: a node already answering it refuses it again, which is what stops
+// A -> B -> A. `remaining_hops` is how many nodes the tree may still enter, counting
+// the receiver; each forward sends one less, a receiver given 0 refuses, and absent
+// means the receiver's own network.RECURSION_MAX_HOPS -- so a request from a node
+// that predates the field is a fresh root there, exactly as before.
 message RecursionGuard {
     string token = 1;
+    optional uint32 remaining_hops = 2;
+}
+
+// AssociateClient's answer: whether Client.peer_id/signature bound, and why not when
+// it did not. Separate from the silent best-effort binding GenerateClient itself
+// attempts (Client.peer_id/signature there too) because that one requires peer_id to
+// already be a known peer, which a caller announcing itself for the very first time
+// cannot be yet -- IntroducePeer itself now needs a client_id (issue #428), so it has
+// to run before this node can be a peer to anyone it is introducing itself to. This
+// RPC is the deferred half: call it once IntroducePeer has actually registered you.
+message AssociateClientOutput {
+    bool bound = 1;
+    string reason = 2;
 }
 
 message ModifyServiceSystemResourcesOutput {
@@ -725,12 +919,18 @@ message ObserveEvent {
 // GATEWAY SERVICE DEFINITION
 // -----------------------
 
+// Every RPC below but GenerateClient itself requires a Client -- mint one there first
+// (issue #428). A local instance of this node is exempt, identified the way
+// ModifyServiceSystemResources identifies one (by its address); everyone else is
+// refused outright without a client_id this node already knows, and is then subject
+// to a shared per-client_id rate limit across every one of these RPCs together. See
+// src/gateway/client_gate.py.
 service Gateway {
     rpc StartService(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Configuration | Hash | Client | RecursionGuard | Service -> Instance
     rpc StopService(stream buffer.Buffer) returns (stream buffer.Buffer) {} // TokenMessage -> Refund
     rpc ModifyDeposit(stream buffer.Buffer) returns (stream buffer.Buffer) {} // ModifyDepositInput -> ModifyDepositOutput
 
-    rpc GetPeerInfo(stream buffer.Buffer) returns (stream buffer.Buffer) {} //  -> Peer
+    rpc GetPeerInfo(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Client -> Peer
 
     // Ask this node to turn a communication domain into the peers it knows in it.
     //
@@ -745,16 +945,23 @@ service Gateway {
     // verifies every address it is given, exactly as it would verify one an operator
     // typed into its own config, because a peer that names an address has staked
     // nothing on it. Nothing is opened on the strength of this reply.
-    rpc ResolveNetwork(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Service.Network -> ConfigurationFile.NetworkResolution
-    rpc IntroducePeer(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Peer -> 
+    rpc ResolveNetwork(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Client & Service.Network -> ConfigurationFile.NetworkResolution
+    rpc IntroducePeer(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Client & Peer -> RecursionGuard
     rpc GenerateClient(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Client -> Client | PoWRequired
+    // Bind an already-minted client_id to this caller's peer identity, once that peer
+    // is actually known here -- the deferred half of Client.peer_id/signature, for
+    // when GenerateClient's own attempt at mint time could not have succeeded yet
+    // (see AssociateClientOutput). Not gated behind a separate client_id envelope:
+    // the Client in the request already carries the one being associated.
+    rpc AssociateClient(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Client -> AssociateClientOutput
     rpc GenerateDepositToken(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Client -> TokenMessage
-    rpc Payable(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Payment -> Empty
+    rpc Payable(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Client & Payment -> Empty
     rpc ModifyServiceSystemResources(stream buffer.Buffer) returns (stream buffer.Buffer) {} // ModifyServiceSystemResourcesInput -> ModifyServiceSystemResourcesOutput
-    rpc GetServiceEstimatedCost(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Metadata.HashTag.Hash & Service -> EstimatedCost
-    rpc GetResourceAvailability(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Service.Container.Resources -> ResourceAvailability
-    rpc GetService(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Metadata.HashTag.Hash -> Service
+    rpc GetServiceEstimatedCost(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Client & RecursionGuard & Metadata.HashTag.Hash & Service -> EstimatedCost (StartService's envelope)
+    rpc GetResourceAvailability(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Client & ArchitectureResources & RecursionGuard -> ResourceAvailability
+    rpc GetService(stream buffer.Buffer) returns (stream buffer.Buffer) {} // Client & Metadata.HashTag.Hash -> Service
     rpc GetMetrics(stream buffer.Buffer) returns (stream buffer.Buffer) {} // TokenMessage -> Metrics
     rpc ServiceTunnel(stream buffer.Buffer) returns (stream buffer.Buffer) {} // TokenMessage | bytes -> bytes
     rpc Observe(stream buffer.Buffer) returns (stream buffer.Buffer) {} // ObserveRequest(instance_id/token) -> stream ObserveEvent
+    rpc Chat(stream buffer.Buffer) returns (stream buffer.Buffer) {} // ChatMessage -> ChatAck
 }
