@@ -2,7 +2,8 @@ from time import sleep
 import os
 from typing import List, Tuple, Callable, Optional
 
-from bee_rpc.client import Dir, client_grpc
+from bee_rpc.client import Dir, client_grpc, MAX_BLOCK_NESTING
+from bee_rpc.utils import Enviroment
 import grpc
 
 from node_controller.gateway.protos import celaut_pb2, celaut_pb2_grpc
@@ -11,6 +12,11 @@ from node_controller.gateway.utils import from_amount
 
 
 VALIDATE_HASH_INTEGRITY = True
+
+# Send every level of blocks framed. A service's filesystem block then reaches
+# the node as a multiblock directory, the form it is stored in, and not as one
+# flat file of its full expansion (celaut-project/nodo#524).
+Enviroment.block_depth = MAX_BLOCK_NESTING
 
 # How many times stop() retries before giving up. It used to loop forever, which
 # turns an unreachable gateway into a hung thread instead of a reportable error.
