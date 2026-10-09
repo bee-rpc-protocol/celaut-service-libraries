@@ -56,7 +56,11 @@ if "bee_rpc" not in sys.modules:
 
     bee_client.Dir = Dir
     bee_client.client_grpc = lambda **kw: iter(())
+    bee_client.MAX_BLOCK_NESTING = 32
     bee.client = bee_client
+    bee_utils = types.ModuleType("bee_rpc.utils")
+    bee_utils.Enviroment = type("Enviroment", (), {"block_depth": 1})
+    bee.utils = bee_utils
     bee.buffer_pb2 = bee_buffer_pb2
 
     # Same construction the real generated *_pb2.py files use (see
@@ -80,6 +84,7 @@ if "bee_rpc" not in sys.modules:
 
     sys.modules["bee_rpc"] = bee
     sys.modules["bee_rpc.client"] = bee_client
+    sys.modules["bee_rpc.utils"] = bee_utils
     sys.modules["bee_rpc.buffer_pb2"] = bee_buffer_pb2
 
 import grpc  # noqa: E402
